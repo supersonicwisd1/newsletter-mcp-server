@@ -83,25 +83,36 @@ class NewsletterWorkflow:
             # Filter important messages
             important_messages = await self.slack_tool.filter_important_messages(messages)
             
+            # Group messages by topic
+            topic_groups = await self.slack_tool.group_messages_by_topic(important_messages)
+            
+            # Enrich messages with dates and user info
+            enriched_messages = await self.slack_tool.enrich_messages_with_dates(important_messages)
+            
             # Get user info for important messages (for better attribution)
-            enriched_messages = []
+            enriched_messages_with_user_info = []
             for msg in important_messages:
+                # Parse user mentions in the message
+                parsed_text = await self.slack_tool.parse_user_mentions(msg.text)
+                
                 user_info = await self.slack_tool.get_user_info(msg.user)
                 enriched_msg = {
-                    'text': msg.text,
+                    'text': parsed_text,  # Use parsed text with resolved mentions
                     'user_id': msg.user,
                     'user_name': user_info.get('display_name') or user_info.get('real_name') or user_info.get('name', 'Unknown'),
                     'timestamp': msg.timestamp,
                     'reactions': len(msg.reactions) if msg.reactions else 0,
                     'replies': msg.reply_count or 0
                 }
-                enriched_messages.append(enriched_msg)
+                enriched_messages_with_user_info.append(enriched_msg)
             
             channel_data = {
                 'name': channel['name'],
                 'id': channel['id'],
                 'total_messages': len(messages),
-                'important_messages': enriched_messages,
+                'important_messages': enriched_messages_with_user_info,
+                'topic_groups': topic_groups,
+                'enriched_messages': enriched_messages,
                 'member_count': channel['member_count']
             }
             
@@ -110,6 +121,7 @@ class NewsletterWorkflow:
             total_important += len(important_messages)
             
             print(f"    📊 {len(messages)} total, {len(important_messages)} important")
+            print(f"    📂 Organized into {len(topic_groups)} topics")
         
         # Step 4: Generate newsletter content
         newsletter_content = self._generate_newsletter_content(
@@ -154,28 +166,73 @@ This week, our team was active across {len(channel_data)} channels with {total_m
             content += f"#{channel['name'].upper()}\n"
             content += f"Members: {channel['member_count']} | Important Updates: {len(channel['important_messages'])}\n\n"
             
-            # Add top important messages
-            for i, msg in enumerate(channel['important_messages'][:5], 1):  # Top 5 per channel
-                # Clean up the message text
-                text = msg['text'].replace('\n', ' ').strip()
-                if len(text) > 150:
-                    text = text[:150] + "..."
+            # Add topic-based organization
+            topic_groups = channel.get('topic_groups', {})
+            if topic_groups:
+                content += "📂 ORGANIZED BY TOPIC:\n\n"
                 
-                # Add engagement indicators
-                engagement = ""
-                if msg['reactions'] > 0:
-                    engagement += f"👍{msg['reactions']} "
-                if msg['replies'] > 0:
-                    engagement += f"💬{msg['replies']} "
-                
-                content += f"{i}. {msg['user_name']}: {text}"
-                if engagement:
-                    content += f" [{engagement.strip()}]"
-                content += "\n\n"
+                for topic, messages in topic_groups.items():
+                    if len(messages) > 0:
+                        content += f"🔹 {topic.upper()} ({len(messages)} updates)\n"
+                        
+                        for i, msg in enumerate(messages[:3], 1):  # Top 3 per topic
+                            # Clean up the message text
+                            text = msg.text.replace('\n', ' ').strip()
+                            if len(text) > 120:
+                                text = text[:120] + "..."
+                            
+                            # Add engagement indicators
+                            engagement = ""
+                            if msg.reactions and len(msg.reactions) > 0:
+                                engagement += f"👍{len(msg.reactions)} "
+                            if msg.reply_count and msg.reply_count > 0:
+                                engagement += f"💬{msg.reply_count} "
+                            
+                            content += f"  {i}. {text}"
+                            if engagement:
+                                content += f" [{engagement.strip()}]"
+                            content += "\n"
+                        
+                        if len(messages) > 3:
+                            remaining = len(messages) - 3
+                            content += f"    ... and {remaining} more\n"
+                        content += "\n"
             
-            if len(channel['important_messages']) > 5:
-                remaining = len(channel['important_messages']) - 5
-                content += f"... and {remaining} more important updates\n\n"
+            # Add date highlights
+            enriched_messages = channel.get('enriched_messages', [])
+            messages_with_dates = [msg for msg in enriched_messages if msg.get('has_dates', False)]
+            
+            if messages_with_dates:
+                content += "📅 UPCOMING DATES & DEADLINES:\n"
+                for msg in messages_with_dates[:5]:  # Top 5 with dates
+                    for date_info in msg.get('dates', [])[:2]:  # First 2 dates per message
+                        content += f"  • {msg['user_name']}: {date_info['date_text']} ({date_info['context'].strip()})\n"
+                content += "\n"
+            
+            # Add top important messages (fallback if no topics)
+            if not topic_groups:
+                content += "📝 TOP UPDATES:\n\n"
+                for i, msg in enumerate(channel['important_messages'][:5], 1):  # Top 5 per channel
+                    # Clean up the message text
+                    text = msg['text'].replace('\n', ' ').strip()
+                    if len(text) > 150:
+                        text = text[:150] + "..."
+                    
+                    # Add engagement indicators
+                    engagement = ""
+                    if msg['reactions'] > 0:
+                        engagement += f"👍{msg['reactions']} "
+                    if msg['replies'] > 0:
+                        engagement += f"💬{msg['replies']} "
+                    
+                    content += f"{i}. {msg['user_name']}: {text}"
+                    if engagement:
+                        content += f" [{engagement.strip()}]"
+                    content += "\n\n"
+                
+                if len(channel['important_messages']) > 5:
+                    remaining = len(channel['important_messages']) - 5
+                    content += f"... and {remaining} more important updates\n\n"
             
             content += "─" * 50 + "\n\n"
         

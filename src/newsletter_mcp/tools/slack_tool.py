@@ -10,6 +10,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from pydantic import BaseModel
 import json
+import re
 
 
 class SlackMessage(BaseModel):
@@ -235,6 +236,210 @@ class SlackTool:
         except SlackApiError as e:
             print(f"Error getting bot channels: {e}")
             return []
+
+    async def parse_user_mentions(self, text: str) -> str:
+        """
+        Parse Slack user mentions like <@U090LNR0Y9X> and replace with actual names
+        
+        Args:
+            text: Message text with user mentions
+            
+        Returns:
+            Text with user mentions replaced by display names
+        """
+        # Pattern to match Slack user mentions: <@USER_ID>
+        mention_pattern = r'<@([A-Z0-9]+)>'
+        
+        async def replace_mention(match):
+            user_id = match.group(1)
+            try:
+                user_info = await self.get_user_info(user_id)
+                display_name = user_info.get('display_name') or user_info.get('real_name') or f'@{user_info.get("name", "unknown")}'
+                return f'@{display_name}'
+            except Exception as e:
+                print(f"Error getting user info for {user_id}: {e}")
+                return match.group(0)  # Keep original mention if we can't resolve it
+        
+        # Replace all mentions in the text
+        result = text
+        mentions = re.findall(mention_pattern, text)
+        
+        for user_id in mentions:
+            try:
+                user_info = await self.get_user_info(user_id)
+                display_name = user_info.get('display_name') or user_info.get('real_name') or f'@{user_info.get("name", "unknown")}'
+                result = result.replace(f'<@{user_id}>', f'@{display_name}')
+            except Exception as e:
+                print(f"Error getting user info for {user_id}: {e}")
+                # Keep original mention if we can't resolve it
+        
+        return result
+
+    def categorize_message(self, text: str) -> str:
+        """
+        Categorize a message based on its content and keywords
+        
+        Args:
+            text: Message text to categorize
+            
+        Returns:
+            Category name
+        """
+        text_lower = text.lower()
+        
+        # Define topic keywords
+        topics = {
+            "Scheduling": ["meeting", "calendar", "schedule", "deadline", "due date", "appointment", "call", "sync"],
+            "Announcements": ["announcement", "update", "news", "important", "urgent", "breaking", "notice"],
+            "Technical Discussions": ["code", "bug", "feature", "pr", "review", "deploy", "test", "api", "database"],
+            "Questions & Help": ["help", "question", "how to", "troubleshoot", "issue", "problem", "support"],
+            "Celebrations": ["congratulations", "birthday", "anniversary", "celebration", "achievement", "milestone"],
+            "Project Updates": ["project", "progress", "status", "milestone", "deliverable", "timeline"],
+            "Team Building": ["team", "culture", "fun", "social", "event", "gathering"],
+            "Tools & Resources": ["tool", "resource", "link", "document", "guide", "tutorial"]
+        }
+        
+        # Score each topic based on keyword matches
+        scores = {}
+        for topic, keywords in topics.items():
+            score = sum(1 for keyword in keywords if keyword in text_lower)
+            if score > 0:
+                scores[topic] = score
+        
+        # Return the topic with the highest score, or "General" if no matches
+        if scores:
+            return max(scores.items(), key=lambda x: x[1])[0]
+        else:
+            return "General"
+    
+    async def group_messages_by_topic(self, messages: List[SlackMessage]) -> Dict[str, List[SlackMessage]]:
+        """
+        Group messages by topic categories
+        
+        Args:
+            messages: List of Slack messages
+            
+        Returns:
+            Dictionary with topics as keys and lists of messages as values
+        """
+        topic_groups: Dict[str, List[SlackMessage]] = {}
+        
+        for message in messages:
+            # Parse user mentions in the message
+            parsed_text = await self.parse_user_mentions(message.text)
+            
+            # Categorize the message
+            topic = self.categorize_message(parsed_text)
+            
+            # Add to the appropriate topic group
+            if topic not in topic_groups:
+                topic_groups[topic] = []
+            
+            # Create a copy of the message with parsed text
+            message_copy = SlackMessage(
+                text=parsed_text,
+                user=message.user,
+                timestamp=message.timestamp,
+                reactions=message.reactions,
+                reply_count=message.reply_count,
+                channel=message.channel
+            )
+            
+            topic_groups[topic].append(message_copy)
+        
+        return topic_groups
+
+    def extract_dates(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Extract dates mentioned in text
+        
+        Args:
+            text: Message text to analyze
+            
+        Returns:
+            List of dictionaries with extracted dates and their context
+        """
+        import re
+        from datetime import datetime, timedelta
+        
+        dates = []
+        text_lower = text.lower()
+        
+        # Patterns for different date formats
+        patterns = [
+            # Specific dates: "March 15th", "15th March", "3/15", "2024-03-15"
+            (r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b', 'month_day'),
+            (r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\b', 'day_month'),
+            (r'\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b', 'slash_date'),
+            (r'\b\d{4}-\d{1,2}-\d{1,2}\b', 'iso_date'),
+            
+            # Relative dates: "tomorrow", "next week", "in 2 days"
+            (r'\b(?:today|tomorrow|yesterday)\b', 'relative_day'),
+            (r'\b(?:next|last)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|month|year)\b', 'relative_period'),
+            (r'\bin\s+\d+\s+(?:day|week|month|year)s?\b', 'relative_future'),
+            (r'\b\d+\s+(?:day|week|month|year)s?\s+ago\b', 'relative_past'),
+            
+            # Time references: "at 3pm", "by 5:30"
+            (r'\b(?:at|by|before|after)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b', 'time_reference'),
+        ]
+        
+        for pattern, date_type in patterns:
+            matches = re.finditer(pattern, text_lower)
+            for match in matches:
+                date_text = match.group(0)
+                start_pos = match.start()
+                end_pos = match.end()
+                
+                # Get context around the date (20 characters before and after)
+                context_start = max(0, start_pos - 20)
+                context_end = min(len(text), end_pos + 20)
+                context = text[context_start:context_end]
+                
+                dates.append({
+                    'date_text': date_text,
+                    'date_type': date_type,
+                    'context': context,
+                    'position': (start_pos, end_pos)
+                })
+        
+        return dates
+    
+    async def enrich_messages_with_dates(self, messages: List[SlackMessage]) -> List[Dict[str, Any]]:
+        """
+        Enrich messages with extracted date information
+        
+        Args:
+            messages: List of Slack messages
+            
+        Returns:
+            List of enriched message dictionaries
+        """
+        enriched_messages = []
+        
+        for message in messages:
+            # Parse user mentions
+            parsed_text = await self.parse_user_mentions(message.text)
+            
+            # Extract dates
+            dates = self.extract_dates(parsed_text)
+            
+            # Get user info
+            user_info = await self.get_user_info(message.user)
+            
+            enriched_message = {
+                'text': parsed_text,
+                'user_id': message.user,
+                'user_name': user_info.get('display_name') or user_info.get('real_name') or 'Unknown',
+                'timestamp': message.timestamp,
+                'reactions': len(message.reactions) if message.reactions else 0,
+                'replies': message.reply_count or 0,
+                'dates': dates,
+                'has_dates': len(dates) > 0
+            }
+            
+            enriched_messages.append(enriched_message)
+        
+        return enriched_messages
 
 
 # Example usage and testing

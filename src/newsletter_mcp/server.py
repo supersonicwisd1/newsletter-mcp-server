@@ -247,6 +247,117 @@ async def generate_full_newsletter(days_back: int = 7, title_prefix: str = "Week
     except Exception as e:
         return f"Error generating newsletter: {str(e)}"
 
+@server.tool()
+async def parse_user_mentions(text: str) -> str:
+    """Parse Slack user mentions and replace them with actual user names"""
+    if not slack_tool:
+        return "Error: Tools not initialized. Check your environment variables."
+    
+    try:
+        parsed_text = await slack_tool.parse_user_mentions(text)
+        
+        result = {
+            "original_text": text,
+            "parsed_text": parsed_text,
+            "has_mentions": "<@" in text
+        }
+        
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error parsing user mentions: {str(e)}"
+
+@server.tool()
+async def organize_messages_by_topic(channel_id: str, days_back: int = 7) -> str:
+    """Group messages by topic categories for better newsletter organization"""
+    if not slack_tool:
+        return "Error: Tools not initialized. Check your environment variables."
+    
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        
+        # Get messages
+        messages = await slack_tool.get_channel_messages(channel_id, start_date, end_date)
+        
+        # Filter important messages
+        important_messages = await slack_tool.filter_important_messages(messages)
+        
+        # Group by topic
+        topic_groups = await slack_tool.group_messages_by_topic(important_messages)
+        
+        # Convert to serializable format
+        serializable_groups = {}
+        for topic, msgs in topic_groups.items():
+            serializable_groups[topic] = []
+            for msg in msgs:
+                user_info = await slack_tool.get_user_info(msg.user)
+                serializable_groups[topic].append({
+                    "text": msg.text,
+                    "user_name": user_info.get('display_name') or user_info.get('real_name') or 'Unknown',
+                    "timestamp": msg.timestamp,
+                    "reactions": len(msg.reactions) if msg.reactions else 0,
+                    "replies": msg.reply_count or 0
+                })
+        
+        result = {
+            "channel_id": channel_id,
+            "total_messages": len(messages),
+            "important_messages": len(important_messages),
+            "topic_groups": serializable_groups,
+            "topic_count": len(topic_groups)
+        }
+        
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error organizing messages by topic: {str(e)}"
+
+@server.tool()
+async def extract_dates_from_messages(channel_id: str, days_back: int = 7) -> str:
+    """Extract dates and deadlines mentioned in Slack messages"""
+    if not slack_tool:
+        return "Error: Tools not initialized. Check your environment variables."
+    
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        
+        # Get messages
+        messages = await slack_tool.get_channel_messages(channel_id, start_date, end_date)
+        
+        # Filter important messages
+        important_messages = await slack_tool.filter_important_messages(messages)
+        
+        # Enrich with dates
+        enriched_messages = await slack_tool.enrich_messages_with_dates(important_messages)
+        
+        # Filter messages with dates
+        messages_with_dates = [msg for msg in enriched_messages if msg.get('has_dates', False)]
+        
+        # Extract all dates
+        all_dates = []
+        for msg in messages_with_dates:
+            for date_info in msg.get('dates', []):
+                all_dates.append({
+                    "date_text": date_info['date_text'],
+                    "date_type": date_info['date_type'],
+                    "context": date_info['context'],
+                    "user_name": msg['user_name'],
+                    "message_preview": msg['text'][:100] + "..." if len(msg['text']) > 100 else msg['text']
+                })
+        
+        result = {
+            "channel_id": channel_id,
+            "total_messages": len(messages),
+            "important_messages": len(important_messages),
+            "messages_with_dates": len(messages_with_dates),
+            "total_dates_found": len(all_dates),
+            "dates": all_dates
+        }
+        
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error extracting dates: {str(e)}"
+
 def main():
     """Main server entry point"""
     try:
