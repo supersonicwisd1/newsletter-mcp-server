@@ -29,18 +29,43 @@ class NewsletterWorkflow:
         """Setup Google Docs service using saved OAuth credentials"""
         creds = None
         
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
-                creds = pickle.load(token)
+        # Use absolute paths to avoid working directory issues
+        project_root = "/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server"
+        token_path = os.path.join(project_root, 'token.pickle')
+        credentials_path = os.path.join(project_root, 'credentials.json')
+        
+        print(f"🔍 Looking for Google credentials at: {token_path}")
+        
+        if os.path.exists(token_path):
+            try:
+                with open(token_path, 'rb') as token:
+                    creds = pickle.load(token)
+                print("✅ Loaded existing Google credentials")
+            except Exception as e:
+                print(f"❌ Error loading credentials: {e}")
+                creds = None
+        else:
+            print(f"❌ Token file not found at: {token_path}")
         
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                try:
+                    print("🔄 Refreshing expired credentials...")
+                    creds.refresh(Request())
+                    print("✅ Credentials refreshed successfully")
+                except Exception as e:
+                    print(f"❌ Error refreshing credentials: {e}")
+                    creds = None
             else:
+                print("❌ No valid credentials found")
                 raise Exception("No valid Google credentials found. Run OAuth setup first.")
         
-        self.docs_service = build('docs', 'v1', credentials=creds)
-        print("✅ Google Docs service ready")
+        try:
+            self.docs_service = build('docs', 'v1', credentials=creds)
+            print("✅ Google Docs service ready")
+        except Exception as e:
+            print(f"❌ Error building Google Docs service: {e}")
+            raise Exception(f"Failed to initialize Google Docs service: {e}")
     
     async def generate_newsletter(self, days_back: int = 7) -> dict:
         """
@@ -168,7 +193,7 @@ This week, our team was active across {len(channel_data)} channels with {total_m
             
             # Add topic-based organization
             topic_groups = channel.get('topic_groups', {})
-            if topic_groups:
+            if topic_groups and any(len(msgs) > 0 for msgs in topic_groups.values()):
                 content += "📂 ORGANIZED BY TOPIC:\n\n"
                 
                 for topic, messages in topic_groups.items():
@@ -209,30 +234,29 @@ This week, our team was active across {len(channel_data)} channels with {total_m
                         content += f"  • {msg['user_name']}: {date_info['date_text']} ({date_info['context'].strip()})\n"
                 content += "\n"
             
-            # Add top important messages (fallback if no topics)
-            if not topic_groups:
-                content += "📝 TOP UPDATES:\n\n"
-                for i, msg in enumerate(channel['important_messages'][:5], 1):  # Top 5 per channel
-                    # Clean up the message text
-                    text = msg['text'].replace('\n', ' ').strip()
-                    if len(text) > 150:
-                        text = text[:150] + "..."
-                    
-                    # Add engagement indicators
-                    engagement = ""
-                    if msg['reactions'] > 0:
-                        engagement += f"👍{msg['reactions']} "
-                    if msg['replies'] > 0:
-                        engagement += f"💬{msg['replies']} "
-                    
-                    content += f"{i}. {msg['user_name']}: {text}"
-                    if engagement:
-                        content += f" [{engagement.strip()}]"
-                    content += "\n\n"
+            # Add top important messages (always show this section)
+            content += "📝 TOP UPDATES:\n\n"
+            for i, msg in enumerate(channel['important_messages'][:5], 1):  # Top 5 per channel
+                # Clean up the message text
+                text = msg['text'].replace('\n', ' ').strip()
+                if len(text) > 150:
+                    text = text[:150] + "..."
                 
-                if len(channel['important_messages']) > 5:
-                    remaining = len(channel['important_messages']) - 5
-                    content += f"... and {remaining} more important updates\n\n"
+                # Add engagement indicators
+                engagement = ""
+                if msg['reactions'] > 0:
+                    engagement += f"👍{msg['reactions']} "
+                if msg['replies'] > 0:
+                    engagement += f"💬{msg['replies']} "
+                
+                content += f"{i}. {msg['user_name']}: {text}"
+                if engagement:
+                    content += f" [{engagement.strip()}]"
+                content += "\n\n"
+            
+            if len(channel['important_messages']) > 5:
+                remaining = len(channel['important_messages']) - 5
+                content += f"... and {remaining} more important updates\n\n"
             
             content += "─" * 50 + "\n\n"
         

@@ -92,6 +92,30 @@ The generated newsletters now include:
 4. **Engagement Metrics** - Reaction and reply counts
 5. **User Attribution** - Real names instead of user IDs
 
+### Codebase Structure
+newsletter-mcp-server/
+├── pyproject.toml
+├── README.md
+├── .env                           # Environment variables
+├── src/
+│   └── newsletter_mcp/
+│       ├── __init__.py
+│       ├── server.py              # Main MCP server
+│       ├── tools/
+│       │   ├── __init__.py
+│       │   ├── slack_tool.py      # Slack integration
+│       │   ├── gdocs_tool.py      # Google Docs integration
+│       │   └── gmail_tool.py      # Email distribution
+│       ├── workflows/
+│       │   ├── __init__.py
+│       │   └── newsletter_workflow.py  # Orchestrates the flow
+│       └── config/
+│           ├── __init__.py
+│           └── auth_config.py     # Authentication management
+└── tests/
+    ├── __init__.py
+    └── test_tools.py
+    
 ### Example Newsletter Structure
 ```
 Weekly Development Newsletter
@@ -141,15 +165,3 @@ Members: 25 | Important Updates: 12
 
 ### Debug Mode
 The server includes debug logging. Check the console output for detailed information about the connection and processing steps.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-## License
-
-[Add your license information here]

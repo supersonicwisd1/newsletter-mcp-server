@@ -287,11 +287,12 @@ class SlackTool:
         """
         text_lower = text.lower()
         
-        # Define topic keywords
+        # Define topic keywords with priority order
         topics = {
-            "Scheduling": ["meeting", "calendar", "schedule", "deadline", "due date", "appointment", "call", "sync"],
+            "Scheduling": ["meeting", "calendar", "schedule", "deadline", "due date", "appointment", "call", "sync", "shift", "replacement", "cover"],
+            "Client Management": ["client", "caregiver", "replacement", "cover", "shift", "assignment"],
             "Announcements": ["announcement", "update", "news", "important", "urgent", "breaking", "notice"],
-            "Technical Discussions": ["code", "bug", "feature", "pr", "review", "deploy", "test", "api", "database"],
+            "Technical Discussions": ["code", "bug", "feature", "pr", "review", "deploy", "test", "api", "database", "system"],
             "Questions & Help": ["help", "question", "how to", "troubleshoot", "issue", "problem", "support"],
             "Celebrations": ["congratulations", "birthday", "anniversary", "celebration", "achievement", "milestone"],
             "Project Updates": ["project", "progress", "status", "milestone", "deliverable", "timeline"],

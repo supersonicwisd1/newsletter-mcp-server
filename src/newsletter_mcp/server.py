@@ -7,7 +7,7 @@ import asyncio
 import os
 import json
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 from mcp.server import FastMCP
@@ -43,12 +43,22 @@ def initialize_tools():
     
     slack_tool = SlackTool(slack_token)
     
-    # Use the correct path for credentials.json (project root, absolute path)
-    # When running as a module, we need to go up one level from the current working directory
-    # Use absolute path to avoid working directory issues
+    # Use absolute paths for Google credentials
     project_root = "/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server"
     credentials_path = os.path.join(project_root, 'credentials.json')
-    docs_tool = GoogleDocsTool(credentials_file=credentials_path)
+    
+    print(f"🔍 Looking for Google credentials at: {credentials_path}")
+    
+    if not os.path.exists(credentials_path):
+        print(f"❌ Google credentials not found at: {credentials_path}")
+        docs_tool = None
+    else:
+        try:
+            docs_tool = GoogleDocsTool(credentials_file=credentials_path)
+            print("✅ Google Docs tool initialized")
+        except Exception as e:
+            print(f"❌ Error initializing Google Docs tool: {e}")
+            docs_tool = None
     
     print("✅ Newsletter MCP Server tools initialized")
 
@@ -151,7 +161,7 @@ async def filter_important_messages(channel_id: str, days_back: int = 7) -> str:
 async def create_simple_document(title: str, content: str) -> str:
     """Create a simple Google Doc with custom content"""
     if not docs_tool:
-        return "Error: Tools not initialized. Check your environment variables."
+        return "Error: Google Docs tool not initialized. Check your Google credentials."
     
     try:
         doc_info = await docs_tool.create_document(title, content)
@@ -175,73 +185,18 @@ async def generate_full_newsletter(days_back: int = 7, title_prefix: str = "Week
         return "Error: Tools not initialized. Check your environment variables."
     
     try:
-        # Get all channels
-        channels = await slack_tool.get_bot_channels()
-        if not channels:
-            return "Error: No accessible channels found"
+        # Import the workflow
+        from newsletter_mcp.workflows.newsletter_workflow import NewsletterWorkflow
         
-        # Date range
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
+        # Initialize workflow with Slack token
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
+        if not slack_token:
+            return "Error: SLACK_BOT_TOKEN not found"
         
-        # Collect data from all channels
-        all_channel_data = []
-        total_messages = 0
-        total_important = 0
+        workflow = NewsletterWorkflow(slack_token)
         
-        for channel in channels:
-            # Get messages
-            messages = await slack_tool.get_channel_messages(
-                channel['id'], start_date, end_date
-            )
-            
-            # Filter important
-            important_messages = await slack_tool.filter_important_messages(messages)
-            
-            # Enrich with user info
-            enriched_messages = []
-            for msg in important_messages:
-                user_info = await slack_tool.get_user_info(msg.user)
-                enriched_msg = {
-                    'text': msg.text,
-                    'user_name': user_info.get('display_name') or user_info.get('real_name') or 'Unknown',
-                    'reactions': len(msg.reactions) if msg.reactions else 0,
-                    'replies': msg.reply_count or 0
-                }
-                enriched_messages.append(enriched_msg)
-            
-            channel_data = {
-                'name': channel['name'],
-                'messages': enriched_messages
-            }
-            
-            all_channel_data.append(channel_data)
-            total_messages += len(messages)
-            total_important += len(important_messages)
-        
-        # Create newsletter content
-        newsletter_data = NewsletterContent(
-            title=f"{title_prefix} - {datetime.now().strftime('%B %d, %Y')}",
-            date=datetime.now().strftime('%Y-%m-%d'),
-            summary=f"This week we processed {total_messages} messages across {len(channels)} channels and identified {total_important} important updates.",
-            channels=all_channel_data
-        )
-        
-        # Create document
-        doc_info = await docs_tool.create_newsletter_document(newsletter_data)
-        
-        result = {
-            "success": True,
-            "newsletter_title": newsletter_data.title,
-            "document_url": doc_info["url"],
-            "document_id": doc_info["document_id"],
-            "statistics": {
-                "channels_processed": len(channels),
-                "total_messages": total_messages,
-                "important_messages": total_important,
-                "date_range": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-            }
-        }
+        # Generate newsletter using the enhanced workflow
+        result = await workflow.generate_newsletter(days_back=days_back)
         
         return json.dumps(result, indent=2)
     except Exception as e:
@@ -286,7 +241,7 @@ async def organize_messages_by_topic(channel_id: str, days_back: int = 7) -> str
         topic_groups = await slack_tool.group_messages_by_topic(important_messages)
         
         # Convert to serializable format
-        serializable_groups = {}
+        serializable_groups: Dict[str, List[Dict[str, Any]]] = {}
         for topic, msgs in topic_groups.items():
             serializable_groups[topic] = []
             for msg in msgs:
