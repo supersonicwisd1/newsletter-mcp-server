@@ -67,7 +67,9 @@ python -m src.newsletter_mcp.server
 # Or run the script directly
 python src/newsletter_mcp/server.py
 ```
-
+### Running Evals
+```bash
+```
 ### Available Tools
 
 #### Basic Tools

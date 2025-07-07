@@ -1,0 +1,183 @@
+{
+  "Slack Connection": {
+    "status": "PASS",
+    "message": "Connected to 1 channels",
+    "channels": [
+      "test-azentrix"
+    ]
+  },
+  "User Mention Parsing": {
+    "status": "PASS",
+    "message": "User mention parsing: 3/3 tests passed",
+    "results": [
+      {
+        "test_case": 1,
+        "description": "Single user mention",
+        "input": "Hey <@U090LNR0Y9X>, can you review this PR?",
+        "output": "Hey @azentrix, can you review this PR?",
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 2,
+        "description": "Multiple user mentions",
+        "input": "Meeting with <@U1111111111> and <@U2222222222> tomorrow",
+        "output": "Meeting with @@unknown and @@unknown tomorrow",
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 3,
+        "description": "No mentions",
+        "input": "No mentions in this message",
+        "output": "No mentions in this message",
+        "status": "PASS",
+        "success": true
+      }
+    ]
+  },
+  "Topic Organization": {
+    "status": "PASS",
+    "message": "Topic organization: 5/5 tests passed",
+    "results": [
+      {
+        "test_case": 1,
+        "description": "Scheduling message",
+        "input": "We have a meeting tomorrow at 3pm",
+        "expected_topic": "Scheduling",
+        "actual_topic": "Scheduling",
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 2,
+        "description": "Technical message",
+        "input": "New feature deployed to production!",
+        "expected_topic": "Technical Discussions",
+        "actual_topic": "Technical Discussions",
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 3,
+        "description": "Help request",
+        "input": "Can someone help me with this issue?",
+        "expected_topic": "Questions & Help",
+        "actual_topic": "Questions & Help",
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 4,
+        "description": "Celebration message",
+        "input": "Happy birthday @john! \ud83c\udf89",
+        "expected_topic": "Celebrations",
+        "actual_topic": "Celebrations",
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 5,
+        "description": "Client management message",
+        "input": "Find a replacement for client shift",
+        "expected_topic": "Client Management",
+        "actual_topic": "Client Management",
+        "status": "PASS",
+        "success": true
+      }
+    ]
+  },
+  "Date Extraction": {
+    "status": "PASS",
+    "message": "Date extraction: 5/5 tests passed",
+    "results": [
+      {
+        "test_case": 1,
+        "description": "Relative date and time",
+        "input": "Meeting tomorrow at 3pm",
+        "expected_dates": [
+          "tomorrow",
+          "3pm"
+        ],
+        "extracted_dates": [
+          "tomorrow",
+          "at 3pm"
+        ],
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 2,
+        "description": "Specific date",
+        "input": "Deadline is March 15th",
+        "expected_dates": [
+          "march 15th"
+        ],
+        "extracted_dates": [
+          "march 15th"
+        ],
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 3,
+        "description": "Relative period",
+        "input": "Release scheduled for next week",
+        "expected_dates": [
+          "next week"
+        ],
+        "extracted_dates": [
+          "next week"
+        ],
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 4,
+        "description": "Future reference",
+        "input": "Project due in 2 weeks",
+        "expected_dates": [
+          "in 2 weeks"
+        ],
+        "extracted_dates": [
+          "in 2 weeks"
+        ],
+        "status": "PASS",
+        "success": true
+      },
+      {
+        "test_case": 5,
+        "description": "No dates",
+        "input": "No dates mentioned here",
+        "expected_dates": [],
+        "extracted_dates": [],
+        "status": "PASS",
+        "success": true
+      }
+    ]
+  },
+  "Message Filtering": {
+    "status": "PASS",
+    "message": "Filtered 13/14 messages as important",
+    "total_messages": 14,
+    "important_messages": 13,
+    "filtering_ratio": 0.9285714285714286
+  },
+  "Google Docs Integration": {
+    "status": "PASS",
+    "message": "Google Docs integration working",
+    "document_id": "1sbK9G3FsMReP-RVhz5jyyya2tODHn7_XYt_1mPDeqh8",
+    "title": "Weekly Dev Newsletter - July 07, 2025",
+    "url": "https://docs.google.com/document/d/1sbK9G3FsMReP-RVhz5jyyya2tODHn7_XYt_1mPDeqh8/edit"
+  },
+  "Full Workflow": {
+    "status": "PASS",
+    "message": "Complete workflow successful: 13 important messages from 1 channels",
+    "statistics": {
+      "channels_processed": 1,
+      "total_messages": 14,
+      "important_messages": 13,
+      "document_url": "https://docs.google.com/document/d/1h0wFeA1Zj41prn1C9uDvZpChG-t2wdYgPOujKSnmw2E/edit"
+    }
+  }
+}
