@@ -26,8 +26,20 @@ print(f"🐛 DEBUG: Environment variables:", file=sys.stderr)
 for key in ['SLACK_BOT_TOKEN', 'PYTHONPATH', 'PATH']:
     print(f"🐛 DEBUG: {key} = {os.getenv(key, 'NOT SET')}", file=sys.stderr)
 
-# Load environment variables from current directory
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+# Load environment variables from multiple possible locations
+env_paths = [
+    os.path.join(os.path.dirname(__file__), '.env'),  # Same directory as server.py
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'),  # Project root
+    '.env',  # Current working directory
+]
+
+for env_path in env_paths:
+    if os.path.exists(env_path):
+        print(f"🔍 Loading .env from: {env_path}")
+        load_dotenv(env_path)
+        break
+else:
+    print("⚠️  No .env file found in any expected location")
 
 # Initialize our tools
 slack_tool = None
@@ -39,12 +51,16 @@ def initialize_tools():
     
     slack_token = os.getenv("SLACK_BOT_TOKEN")
     if not slack_token:
-        raise ValueError("SLACK_BOT_TOKEN not found in environment")
+        print("❌ SLACK_BOT_TOKEN not found in environment")
+        print("💡 Make sure your .env file is in the correct location and contains SLACK_BOT_TOKEN")
+        print(f"🔍 Current working directory: {os.getcwd()}")
+        print(f"🔍 Looking for .env in: {[os.path.join(os.path.dirname(__file__), '.env'), os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'), '.env']}")
+        raise ValueError("SLACK_BOT_TOKEN not found in environment. Check your .env file location.")
     
     slack_tool = SlackTool(slack_token)
     
     # Use absolute paths for Google credentials
-    credentials_path = os.path.join(os.path.dirname(__file__), 'credentials.json')
+    credentials_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'credentials.json')
     
     print(f"🔍 Looking for Google credentials at: {credentials_path}")
     

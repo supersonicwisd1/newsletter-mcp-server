@@ -6,7 +6,7 @@ Handles fetching messages, channel info, and filtering important conversations
 import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from slack_sdk import WebClient
+from slack_sdk.web.async_client import AsyncWebClient
 from slack_sdk.errors import SlackApiError
 from pydantic import BaseModel
 import json
@@ -28,7 +28,7 @@ class SlackTool:
     """Tool for interacting with Slack API"""
     
     def __init__(self, bot_token: str):
-        self.client = WebClient(token=bot_token)
+        self.client = AsyncWebClient(token=bot_token)
         self.bot_token = bot_token
     
     async def get_channel_messages(
@@ -54,7 +54,7 @@ class SlackTool:
             end_ts = str(end_date.timestamp())
             
             # Fetch messages
-            response = self.client.conversations_history(
+            response = await self.client.conversations_history(
                 channel=channel_id,
                 oldest=start_ts,
                 latest=end_ts,
@@ -99,7 +99,7 @@ class SlackTool:
             Dictionary with channel information
         """
         try:
-            response = self.client.conversations_info(channel=channel_id)
+            response = await self.client.conversations_info(channel=channel_id)
             channel = response["channel"]
             
             return {
@@ -178,7 +178,7 @@ class SlackTool:
             Dictionary with user information
         """
         try:
-            response = self.client.users_info(user=user_id)
+            response = await self.client.users_info(user=user_id)
             user = response["user"]
             
             return {
@@ -201,7 +201,7 @@ class SlackTool:
             True if connection is successful, False otherwise
         """
         try:
-            response = self.client.auth_test()
+            response = await self.client.auth_test()
             print(f"Connected to Slack as: {response['user']}")
             return True
         except SlackApiError as e:
@@ -216,7 +216,7 @@ class SlackTool:
             List of channel information dictionaries
         """
         try:
-            response = self.client.conversations_list(
+            response = await self.client.conversations_list(
                 types="public_channel,private_channel",
                 exclude_archived=True
             )
@@ -250,28 +250,24 @@ class SlackTool:
         # Pattern to match Slack user mentions: <@USER_ID>
         mention_pattern = r'<@([A-Z0-9]+)>'
         
-        async def replace_mention(match):
-            user_id = match.group(1)
-            try:
-                user_info = await self.get_user_info(user_id)
-                display_name = user_info.get('display_name') or user_info.get('real_name') or f'@{user_info.get("name", "unknown")}'
-                return f'@{display_name}'
-            except Exception as e:
-                print(f"Error getting user info for {user_id}: {e}")
-                return match.group(0)  # Keep original mention if we can't resolve it
+        # Find all unique user mentions
+        mentions = set(re.findall(mention_pattern, text))
         
-        # Replace all mentions in the text
-        result = text
-        mentions = re.findall(mention_pattern, text)
-        
+        # Cache user info to avoid duplicate API calls
+        user_cache = {}
         for user_id in mentions:
             try:
                 user_info = await self.get_user_info(user_id)
                 display_name = user_info.get('display_name') or user_info.get('real_name') or f'@{user_info.get("name", "unknown")}'
-                result = result.replace(f'<@{user_id}>', f'@{display_name}')
+                user_cache[user_id] = f'@{display_name}'
             except Exception as e:
                 print(f"Error getting user info for {user_id}: {e}")
-                # Keep original mention if we can't resolve it
+                user_cache[user_id] = f'<@{user_id}>'  # Keep original mention if we can't resolve it
+        
+        # Replace all mentions in the text
+        result = text
+        for user_id, display_name in user_cache.items():
+            result = result.replace(f'<@{user_id}>', display_name)
         
         return result
 
