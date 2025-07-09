@@ -27,7 +27,7 @@ for key in ['SLACK_BOT_TOKEN', 'PYTHONPATH', 'PATH']:
     print(f"🐛 DEBUG: {key} = {os.getenv(key, 'NOT SET')}", file=sys.stderr)
 
 # Load environment variables from current directory
-load_dotenv("/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server/.env")
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Initialize our tools
 slack_tool = None
@@ -44,8 +44,7 @@ def initialize_tools():
     slack_tool = SlackTool(slack_token)
     
     # Use absolute paths for Google credentials
-    project_root = "/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server"
-    credentials_path = os.path.join(project_root, 'credentials.json')
+    credentials_path = os.path.join(os.path.dirname(__file__), 'credentials.json')
     
     print(f"🔍 Looking for Google credentials at: {credentials_path}")
     

@@ -17,7 +17,7 @@ from newsletter_mcp.tools.slack_tool import SlackTool
 from newsletter_mcp.workflows.newsletter_workflow import NewsletterWorkflow
 
 # Load environment variables
-load_dotenv("/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server/.env")
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 class NewsletterToolEvaluations:
     """Comprehensive evaluations for Newsletter MCP tools"""

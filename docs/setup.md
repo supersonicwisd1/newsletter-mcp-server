@@ -195,14 +195,11 @@ In Slack:
 2. Type `/invite @Newsletter Bot`
 3. The bot will now have access to that channel
 
-## Step 8: Run Tests
+## Step 8: Run Tests/Evals
 
 ```bash
-# Run basic tests
-uv run pytest tests/
-
-# Run with coverage
-uv run pytest tests/ --cov=src/newsletter_mcp
+# Run evals
+python tests/test_tools.py
 ```
 
 ## Troubleshooting

@@ -35,8 +35,7 @@ class GoogleDocsTool:
         self.credentials_file = credentials_file
         # Use absolute path for token file to avoid working directory issues
         if token_file is None:
-            project_root = "/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server"
-            self.token_file = os.path.join(project_root, 'token.pickle')
+            self.token_file = os.path.join(os.path.dirname(__file__), 'token.pickle')
         else:
             self.token_file = token_file
         self.scopes = [

@@ -30,9 +30,8 @@ class NewsletterWorkflow:
         creds = None
         
         # Use absolute paths to avoid working directory issues
-        project_root = "/Users/kene/Documents/codes/headstarters/mcp/newsletter-mcp-server/mcp-server"
-        token_path = os.path.join(project_root, 'token.pickle')
-        credentials_path = os.path.join(project_root, 'credentials.json')
+        token_path = os.path.join(os.path.dirname(__file__), 'token.pickle')
+        credentials_path = os.path.join(os.path.dirname(__file__), 'credentials.json')
         
         print(f"🔍 Looking for Google credentials at: {token_path}")
         
