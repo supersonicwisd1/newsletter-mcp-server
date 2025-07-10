@@ -45,8 +45,7 @@ class GoogleDocsTool:
         ]
         self.docs_service = None
         self.drive_service = None
-        # _setup_services is blocking, so run it in executor
-        asyncio.get_event_loop().run_until_complete(self._setup_services_async())
+        # REMOVE: asyncio.get_event_loop().run_until_complete(self._setup_services_async())
     
     async def run_blocking(self, func, *args, **kwargs):
         loop = asyncio.get_running_loop()
@@ -93,6 +92,9 @@ class GoogleDocsTool:
         except Exception as e:
             raise GoogleDocsError(f"Failed to initialize Google services: {e}")
     
+    async def async_init(self):
+        await self._setup_services_async()
+
     async def test_connection(self) -> bool:
         """
         Test if Google Docs connection is working

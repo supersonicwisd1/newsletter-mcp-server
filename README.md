@@ -152,6 +152,7 @@ Members: 25 | Important Updates: 12
 
 - **SlackTool**: Handles Slack API interactions and message processing
 - **GoogleDocsTool**: Manages Google Docs creation and formatting
+- **GmailTool**: Manages sending of email to recipients
 - **NewsletterWorkflow**: Orchestrates the complete newsletter generation process
 - **MCP Server**: Exposes tools via the Model Context Protocol
 

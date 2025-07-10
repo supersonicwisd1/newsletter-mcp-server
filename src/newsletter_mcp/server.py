@@ -7,7 +7,7 @@ import asyncio
 import os
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 from mcp.server import FastMCP
@@ -84,7 +84,7 @@ server = FastMCP("newsletter-mcp-server")
 async def get_slack_channels() -> str:
     """Get list of Slack channels the bot has access to"""
     if not slack_tool:
-        return "Error: Tools not initialized. Check your environment variables."
+        raise ValueError("Tools not initialized. Check your environment variables.")
     
     try:
         channels = await slack_tool.get_bot_channels()
@@ -95,13 +95,13 @@ async def get_slack_channels() -> str:
         }
         return json.dumps(result, indent=2)
     except Exception as e:
-        return f"Error getting Slack channels: {str(e)}"
+        raise RuntimeError(f"Failed to get Slack channels: {str(e)}")
 
 @server.tool()
 async def get_channel_messages(channel_id: str, days_back: int = 7) -> str:
     """Get messages from a specific Slack channel within a date range"""
     if not slack_tool:
-        return "Error: Tools not initialized. Check your environment variables."
+        raise ValueError("Tools not initialized. Check your environment variables.")
     
     try:
         end_date = datetime.now()
@@ -129,13 +129,13 @@ async def get_channel_messages(channel_id: str, days_back: int = 7) -> str:
         
         return json.dumps(result, indent=2)
     except Exception as e:
-        return f"Error getting channel messages: {str(e)}"
+        raise RuntimeError(f"Failed to get channel messages: {str(e)}")
 
 @server.tool()
 async def filter_important_messages(channel_id: str, days_back: int = 7) -> str:
     """Filter messages to identify important ones based on engagement and content"""
     if not slack_tool:
-        return "Error: Tools not initialized. Check your environment variables."
+        raise ValueError("Tools not initialized. Check your environment variables.")
     
     try:
         end_date = datetime.now()
@@ -170,13 +170,13 @@ async def filter_important_messages(channel_id: str, days_back: int = 7) -> str:
         
         return json.dumps(result, indent=2)
     except Exception as e:
-        return f"Error filtering important messages: {str(e)}"
+        raise RuntimeError(f"Failed to filter important messages: {str(e)}")
 
 @server.tool()
 async def create_simple_document(title: str, content: str) -> str:
     """Create a simple Google Doc with custom content"""
     if not docs_tool:
-        return "Error: Google Docs tool not initialized. Check your Google credentials."
+        raise ValueError("Google Docs tool not initialized. Check your Google credentials.")
     
     try:
         doc_info = await docs_tool.create_document(title, content)
@@ -191,13 +191,17 @@ async def create_simple_document(title: str, content: str) -> str:
         
         return json.dumps(result, indent=2)
     except Exception as e:
-        return f"Error creating document: {str(e)}"
+        raise RuntimeError(f"Failed to create document: {str(e)}")
 
 @server.tool()
-async def generate_full_newsletter(days_back: int = 7, title_prefix: str = "Weekly Dev Newsletter") -> str:
+async def generate_full_newsletter(
+    days_back: int = 7, 
+    send_email: bool = False,
+    custom_recipients: Optional[str] = None
+) -> str:
     """Complete end-to-end newsletter generation from all accessible Slack channels"""
     if not slack_tool or not docs_tool:
-        return "Error: Tools not initialized. Check your environment variables."
+        raise ValueError("Tools not initialized. Check your environment variables.")
     
     try:
         # Import the workflow
@@ -206,16 +210,87 @@ async def generate_full_newsletter(days_back: int = 7, title_prefix: str = "Week
         # Initialize workflow with Slack token
         slack_token = os.getenv("SLACK_BOT_TOKEN")
         if not slack_token:
-            return "Error: SLACK_BOT_TOKEN not found"
+            raise ValueError("SLACK_BOT_TOKEN not found")
         
         workflow = NewsletterWorkflow(slack_token)
         
+        # IMPORTANT: Initialize the workflow's async components
+        await workflow.async_init()
+        
+        # Parse custom recipients if provided
+        recipients_list = None
+        if custom_recipients:
+            recipients_list = [email.strip() for email in custom_recipients.split(',') if email.strip()]
+        
         # Generate newsletter using the enhanced workflow
-        result = await workflow.generate_newsletter(days_back=days_back)
+        result = await workflow.generate_newsletter(
+            days_back=days_back,
+            send_email=send_email,
+            custom_recipients=recipients_list
+        )
         
         return json.dumps(result, indent=2)
     except Exception as e:
-        return f"Error generating newsletter: {str(e)}"
+        raise RuntimeError(f"Failed to generate newsletter: {str(e)}")
+
+
+@server.tool()
+async def send_newsletter_email(
+    document_url: str,
+    newsletter_title: str,
+    summary: str,
+    recipients: str
+) -> str:
+    """Send newsletter email to specified recipients"""
+    if not slack_tool or not docs_tool:
+        raise ValueError("Tools not initialized. Check your environment variables.")
+    
+    try:
+        # Import the workflow
+        from newsletter_mcp.workflows.newsletter_workflow import NewsletterWorkflow
+        
+        # Initialize workflow with Slack token
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
+        if not slack_token:
+            raise ValueError("SLACK_BOT_TOKEN not found")
+        
+        workflow = NewsletterWorkflow(slack_token)
+        
+        # IMPORTANT: Initialize the workflow's async components
+        await workflow.async_init()
+        
+        # Parse recipients
+        recipients_list = [email.strip() for email in recipients.split(',') if email.strip()]
+        
+        if not recipients_list:
+            raise ValueError("No valid email addresses provided")
+        
+        # Create doc_info structure
+        doc_info = {
+            'url': document_url,
+            'title': newsletter_title
+        }
+        
+        # Send email
+        result = await workflow._send_newsletter_email(
+            doc_info=doc_info,
+            important_count=0,  # Not used in summary
+            total_count=0,      # Not used in summary
+            custom_recipients=recipients_list
+        )
+        
+        if result:
+            return json.dumps({
+                "success": True,
+                "message": f"Newsletter email sent to {len(recipients_list)} recipients",
+                "recipients": recipients_list,
+                "email_result": result
+            }, indent=2)
+        else:
+            raise RuntimeError("Failed to send email")
+            
+    except Exception as e:
+        raise RuntimeError(f"Failed to send newsletter email: {str(e)}")
 
 @server.tool()
 async def parse_user_mentions(text: str) -> str:
