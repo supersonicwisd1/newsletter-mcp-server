@@ -11,6 +11,10 @@ from slack_sdk.errors import SlackApiError
 from pydantic import BaseModel
 import json
 import re
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 class SlackMessage(BaseModel):
@@ -85,7 +89,7 @@ class SlackTool:
             return messages
             
         except SlackApiError as e:
-            print(f"Error fetching messages: {e}")
+            logger.error(f"Error fetching messages: {e}")
             return []
     
     async def get_channel_info(self, channel_id: str) -> Dict[str, Any]:
@@ -112,7 +116,7 @@ class SlackTool:
             }
             
         except SlackApiError as e:
-            print(f"Error getting channel info: {e}")
+            logger.error(f"Error getting channel info: {e}")
             return {}
     
     async def filter_important_messages(self, messages: List[SlackMessage]) -> List[SlackMessage]:
@@ -190,7 +194,7 @@ class SlackTool:
             }
             
         except SlackApiError as e:
-            print(f"Error getting user info: {e}")
+            logger.error(f"Error getting user info: {e}")
             return {}
     
     async def test_connection(self) -> bool:
@@ -202,10 +206,10 @@ class SlackTool:
         """
         try:
             response = await self.client.auth_test()
-            print(f"Connected to Slack as: {response['user']}")
+            logger.info(f"Connected to Slack as: {response['user']}")
             return True
         except SlackApiError as e:
-            print(f"Connection test failed: {e}")
+            logger.error(f"Connection test failed: {e}")
             return False
     
     async def get_bot_channels(self) -> List[Dict[str, Any]]:
@@ -234,7 +238,7 @@ class SlackTool:
             return channels
             
         except SlackApiError as e:
-            print(f"Error getting bot channels: {e}")
+            logger.error(f"Error getting bot channels: {e}")
             return []
 
     async def parse_user_mentions(self, text: str) -> str:
@@ -261,7 +265,7 @@ class SlackTool:
                 display_name = user_info.get('display_name') or user_info.get('real_name') or f'@{user_info.get("name", "unknown")}'
                 user_cache[user_id] = f'@{display_name}'
             except Exception as e:
-                print(f"Error getting user info for {user_id}: {e}")
+                logger.error(f"Error getting user info for {user_id}: {e}")
                 user_cache[user_id] = f'<@{user_id}>'  # Keep original mention if we can't resolve it
         
         # Replace all mentions in the text
@@ -446,50 +450,50 @@ async def test_slack_tool():
     # Initialize with bot token from environment
     bot_token = os.getenv("SLACK_BOT_TOKEN")
     if not bot_token:
-        print("SLACK_BOT_TOKEN not found in environment variables")
+        logger.error("SLACK_BOT_TOKEN not found in environment variables")
         return
     
     slack_tool = SlackTool(bot_token)
     
     # Test connection
-    print("Testing Slack connection...")
+    logger.info("Testing Slack connection...")
     if await slack_tool.test_connection():
-        print("✓ Slack connection successful")
+        logger.info("✓ Slack connection successful")
     else:
-        print("✗ Slack connection failed")
+        logger.error("✗ Slack connection failed")
         return
     
     # Get bot channels
-    print("\nFetching bot channels...")
+    logger.info("\nFetching bot channels...")
     channels = await slack_tool.get_bot_channels()
-    print(f"Bot is member of {len(channels)} channels:")
+    logger.info(f"Bot is member of {len(channels)} channels:")
     for channel in channels:
-        print(f"  - {channel['name']} (ID: {channel['id']})")
+        logger.info(f"  - {channel['name']} (ID: {channel['id']})")
     
     # Test message fetching (if channels exist)
     if channels:
         channel_id = channels[0]["id"]
-        print(f"\nFetching recent messages from #{channels[0]['name']}...")
+        logger.info(f"\nFetching recent messages from #{channels[0]['name']}...")
         
         # Get messages from the last week
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
         
         messages = await slack_tool.get_channel_messages(channel_id, start_date, end_date)
-        print(f"Found {len(messages)} messages")
+        logger.info(f"Found {len(messages)} messages")
         
         # Filter important messages
         important_messages = await slack_tool.filter_important_messages(messages)
-        print(f"Filtered to {len(important_messages)} important messages")
+        logger.info(f"Filtered to {len(important_messages)} important messages")
         
         # Show sample message
         if important_messages:
             sample_msg = important_messages[0]
-            print(f"\nSample important message:")
-            print(f"  User: {sample_msg.user}")
-            print(f"  Text: {sample_msg.text[:100]}...")
-            print(f"  Reactions: {len(sample_msg.reactions)}")
-            print(f"  Replies: {sample_msg.reply_count}")
+            logger.info(f"\nSample important message:")
+            logger.info(f"  User: {sample_msg.user}")
+            logger.info(f"  Text: {sample_msg.text[:100]}...")
+            logger.info(f"  Reactions: {len(sample_msg.reactions)}")
+            logger.info(f"  Replies: {sample_msg.reply_count}")
 
 
 if __name__ == "__main__":

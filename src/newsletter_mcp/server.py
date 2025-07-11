@@ -19,12 +19,10 @@ from newsletter_mcp.tools.slack_tool import SlackTool
 from newsletter_mcp.tools.gdocs_tool import GoogleDocsTool, NewsletterContent
 
 import sys
-print("🐛 DEBUG: Server starting...", file=sys.stderr)
-print(f"🐛 DEBUG: Python path: {sys.executable}", file=sys.stderr)
-print(f"🐛 DEBUG: Working directory: {os.getcwd()}", file=sys.stderr)
-print(f"🐛 DEBUG: Environment variables:", file=sys.stderr)
-for key in ['SLACK_BOT_TOKEN', 'PYTHONPATH', 'PATH']:
-    print(f"🐛 DEBUG: {key} = {os.getenv(key, 'NOT SET')}", file=sys.stderr)
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from multiple possible locations
 env_paths = [
@@ -35,7 +33,7 @@ env_paths = [
 
 for env_path in env_paths:
     if os.path.exists(env_path):
-        print(f"🔍 Loading .env from: {env_path}")
+        logger.info(f"🔍 Loading .env from: {env_path}")
         load_dotenv(env_path)
         break
 else:
@@ -51,10 +49,10 @@ def initialize_tools():
     
     slack_token = os.getenv("SLACK_BOT_TOKEN")
     if not slack_token:
-        print("❌ SLACK_BOT_TOKEN not found in environment")
-        print("💡 Make sure your .env file is in the correct location and contains SLACK_BOT_TOKEN")
-        print(f"🔍 Current working directory: {os.getcwd()}")
-        print(f"🔍 Looking for .env in: {[os.path.join(os.path.dirname(__file__), '.env'), os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'), '.env']}")
+        logger.error("❌ SLACK_BOT_TOKEN not found in environment")
+        logger.error("💡 Make sure your .env file is in the correct location and contains SLACK_BOT_TOKEN")
+        logger.error(f"🔍 Current working directory: {os.getcwd()}")
+        logger.error(f"🔍 Looking for .env in: {[os.path.join(os.path.dirname(__file__), '.env'), os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env'), '.env']}")
         raise ValueError("SLACK_BOT_TOKEN not found in environment. Check your .env file location.")
     
     slack_tool = SlackTool(slack_token)
@@ -62,20 +60,20 @@ def initialize_tools():
     # Use absolute paths for Google credentials
     credentials_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'credentials.json')
     
-    print(f"🔍 Looking for Google credentials at: {credentials_path}")
+    logger.info(f"🔍 Looking for Google credentials at: {credentials_path}")
     
     if not os.path.exists(credentials_path):
-        print(f"❌ Google credentials not found at: {credentials_path}")
+        logger.error(f"❌ Google credentials not found at: {credentials_path}")
         docs_tool = None
     else:
         try:
             docs_tool = GoogleDocsTool(credentials_file=credentials_path)
-            print("✅ Google Docs tool initialized")
+            logger.info("✅ Google Docs tool initialized")
         except Exception as e:
-            print(f"❌ Error initializing Google Docs tool: {e}")
+            logger.error(f"❌ Error initializing Google Docs tool: {e}")
             docs_tool = None
     
-    print("✅ Newsletter MCP Server tools initialized")
+    logger.info("✅ Newsletter MCP Server tools initialized")
 
 # Create the FastMCP server
 server = FastMCP("newsletter-mcp-server")
@@ -410,16 +408,16 @@ def main():
         initialize_tools()
         
         # Test connections
-        print("🔍 Testing tool connections...")
+        logger.info("🔍 Testing tool connections...")
         
         # Test Slack - we need to run this in an event loop
         async def test_connections():
             # Test Slack
             if await slack_tool.test_connection():
-                print("✅ Slack connection verified")
+                logger.info("✅ Slack connection verified")
                 return True
             else:
-                print("❌ Slack connection failed")
+                logger.error("❌ Slack connection failed")
                 return False
         
         # Run the async test in a new event loop
@@ -427,18 +425,18 @@ def main():
             return
         
         # Test Google Docs (simple check)
-        print("✅ Google Docs OAuth2 credentials ready")
+        logger.info("✅ Google Docs OAuth2 credentials ready")
         
-        print("🚀 Starting Newsletter MCP Server...")
-        print("Server ready for Claude Desktop connection!")
+        logger.info("🚀 Starting Newsletter MCP Server...")
+        logger.info("Server ready for Claude Desktop connection!")
         
         # Run the FastMCP server with stdio transport
         server.run(transport="stdio")
     
     except KeyboardInterrupt:
-        print("\n👋 Server shutdown requested")
+        logger.info("\n👋 Server shutdown requested")
     except Exception as e:
-        print(f"Server error: {e}")
+        logger.error(f"Server error: {e}")
         raise
 
 if __name__ == "__main__":

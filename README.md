@@ -166,3 +166,10 @@ Members: 25 | Important Updates: 12
 
 ### Debug Mode
 The server includes debug logging. Check the console output for detailed information about the connection and processing steps.
+
+
+#### Future Implement
+-- make init function more async
+-- improve the error handling
+-- improve test by using mock
+-- remove file names from codebase, rather put it in an .env file
